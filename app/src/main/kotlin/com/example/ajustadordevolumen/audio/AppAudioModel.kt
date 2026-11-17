@@ -9,5 +9,9 @@ data class AppAudioInfo(
     val volumePercent: Int = 100,
     val isMuted: Boolean = false,
     val isPlaying: Boolean = true,
+    val isGame: Boolean = false,
     val audioSessionId: Int = 0
-)
+) {
+    val categoryLabel: String
+        get() = if (isGame) "Juego" else "Multimedia"
+}

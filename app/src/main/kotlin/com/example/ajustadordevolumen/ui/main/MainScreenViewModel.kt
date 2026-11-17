@@ -20,6 +20,22 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
         repository.toggleMute(streamType)
     }
 
+    fun setGameMasterVolume(volume: Int) {
+        repository.setGameMasterVolume(volume)
+    }
+
+    fun toggleGameMasterMute() {
+        repository.toggleGameMasterMute()
+    }
+
+    fun setMediaMasterVolume(volume: Int) {
+        repository.setMediaMasterVolume(volume)
+    }
+
+    fun toggleMediaMasterMute() {
+        repository.toggleMediaMasterMute()
+    }
+
     fun setAppVolume(packageName: String, volume: Int) {
         repository.setAppVolume(packageName, volume)
     }

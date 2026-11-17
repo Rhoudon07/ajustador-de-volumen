@@ -2,11 +2,13 @@ package com.example.ajustadordevolumen.audio
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.AudioPlaybackConfiguration
 import android.os.Build
@@ -27,6 +29,16 @@ class AppVolumeManager(private val context: Context) {
     val activeApps: StateFlow<List<AppAudioInfo>> = _activeApps.asStateFlow()
 
     private var playbackCallback: AudioManager.AudioPlaybackCallback? = null
+
+    var gameMasterVolume: Int = prefs.getInt("master_game_vol", 100)
+        private set
+    var isGameMasterMuted: Boolean = prefs.getBoolean("master_game_muted", false)
+        private set
+
+    var mediaMasterVolume: Int = prefs.getInt("master_media_vol", 100)
+        private set
+    var isMediaMasterMuted: Boolean = prefs.getBoolean("master_media_muted", false)
+        private set
 
     init {
         initPlaybackListener()
@@ -83,7 +95,9 @@ class AppVolumeManager(private val context: Context) {
                         null
                     }
 
-                    val savedVolume = prefs.getInt("vol_$packageName", 100)
+                    val isGame = isAppGame(packageName, config)
+                    val defaultVol = if (isGame) gameMasterVolume else mediaMasterVolume
+                    val savedVolume = prefs.getInt("vol_$packageName", defaultVol)
                     val isMuted = prefs.getBoolean("mute_$packageName", false)
 
                     detectedApps[packageName] = AppAudioInfo(
@@ -93,6 +107,7 @@ class AppVolumeManager(private val context: Context) {
                         volumePercent = if (isMuted) 0 else savedVolume,
                         isMuted = isMuted,
                         isPlaying = true,
+                        isGame = isGame,
                         audioSessionId = sessionId
                     )
 
@@ -107,7 +122,6 @@ class AppVolumeManager(private val context: Context) {
         }
 
         // If no apps detected via system UID reflection, check if music is active
-        // and show active media placeholder or recently registered apps
         if (detectedApps.isEmpty() && audioManager.isMusicActive) {
             val recentPackages = prefs.getStringSet("recent_media_apps", emptySet()) ?: emptySet()
             for (pkg in recentPackages) {
@@ -115,7 +129,9 @@ class AppVolumeManager(private val context: Context) {
                     val appInfo = packageManager.getApplicationInfo(pkg, 0)
                     val appName = packageManager.getApplicationLabel(appInfo).toString()
                     val iconBitmap = drawableToBitmap(packageManager.getApplicationIcon(appInfo))
-                    val savedVolume = prefs.getInt("vol_$pkg", 100)
+                    val isGame = isAppGame(pkg, null)
+                    val defaultVol = if (isGame) gameMasterVolume else mediaMasterVolume
+                    val savedVolume = prefs.getInt("vol_$pkg", defaultVol)
                     val isMuted = prefs.getBoolean("mute_$pkg", false)
 
                     detectedApps[pkg] = AppAudioInfo(
@@ -124,7 +140,8 @@ class AppVolumeManager(private val context: Context) {
                         appIconBitmap = iconBitmap,
                         volumePercent = if (isMuted) 0 else savedVolume,
                         isMuted = isMuted,
-                        isPlaying = true
+                        isPlaying = true,
+                        isGame = isGame
                     )
                 } catch (_: Exception) {
                 }
@@ -132,6 +149,74 @@ class AppVolumeManager(private val context: Context) {
         }
 
         _activeApps.value = detectedApps.values.toList()
+    }
+
+    @Suppress("DEPRECATION")
+    fun isAppGame(packageName: String, config: AudioPlaybackConfiguration?): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && config != null) {
+            try {
+                if (config.audioAttributes.usage == AudioAttributes.USAGE_GAME) {
+                    return true
+                }
+            } catch (_: Exception) {
+            }
+        }
+        return try {
+            val appInfo = packageManager.getApplicationInfo(packageName, 0)
+            if ((appInfo.flags and ApplicationInfo.FLAG_IS_GAME) != 0) {
+                return true
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && appInfo.category == ApplicationInfo.CATEGORY_GAME) {
+                return true
+            }
+            false
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun setGameMasterVolume(volumePercent: Int) {
+        val clamped = volumePercent.coerceIn(0, 100)
+        gameMasterVolume = clamped
+        isGameMasterMuted = clamped == 0
+        prefs.edit().putInt("master_game_vol", clamped).putBoolean("master_game_muted", isGameMasterMuted).apply()
+
+        // Apply to all active game apps
+        for (app in _activeApps.value.filter { it.isGame }) {
+            setAppVolume(app.packageName, clamped)
+        }
+    }
+
+    fun toggleGameMasterMute() {
+        isGameMasterMuted = !isGameMasterMuted
+        prefs.edit().putBoolean("master_game_muted", isGameMasterMuted).apply()
+        val targetVolume = if (isGameMasterMuted) 0 else gameMasterVolume
+
+        for (app in _activeApps.value.filter { it.isGame }) {
+            setAppVolume(app.packageName, targetVolume)
+        }
+    }
+
+    fun setMediaMasterVolume(volumePercent: Int) {
+        val clamped = volumePercent.coerceIn(0, 100)
+        mediaMasterVolume = clamped
+        isMediaMasterMuted = clamped == 0
+        prefs.edit().putInt("master_media_vol", clamped).putBoolean("master_media_muted", isMediaMasterMuted).apply()
+
+        // Apply to all active non-game apps
+        for (app in _activeApps.value.filter { !it.isGame }) {
+            setAppVolume(app.packageName, clamped)
+        }
+    }
+
+    fun toggleMediaMasterMute() {
+        isMediaMasterMuted = !isMediaMasterMuted
+        prefs.edit().putBoolean("master_media_muted", isMediaMasterMuted).apply()
+        val targetVolume = if (isMediaMasterMuted) 0 else mediaMasterVolume
+
+        for (app in _activeApps.value.filter { !it.isGame }) {
+            setAppVolume(app.packageName, targetVolume)
+        }
     }
 
     fun setAppVolume(packageName: String, volumePercent: Int) {
@@ -210,6 +295,17 @@ class AppVolumeManager(private val context: Context) {
         }
     }
 
+    private fun getSessionId(config: AudioPlaybackConfiguration): Int {
+        return try {
+            val method = config.javaClass.methods.firstOrNull {
+                it.name == "getSessionId" || it.name == "getClientAudioSessionId"
+            }
+            method?.invoke(config) as? Int ?: 0
+        } catch (_: Exception) {
+            0
+        }
+    }
+
     private fun getPlayerProxy(config: AudioPlaybackConfiguration): Any? {
         return try {
             val method: Method = config.javaClass.getMethod("getPlayerProxy")
@@ -224,17 +320,6 @@ class AppVolumeManager(private val context: Context) {
             val method: Method = playerProxy.javaClass.getMethod("setVolume", Float::class.javaPrimitiveType)
             method.invoke(playerProxy, volume)
         } catch (_: Exception) {
-        }
-    }
-
-    private fun getSessionId(config: AudioPlaybackConfiguration): Int {
-        return try {
-            val method = config.javaClass.methods.firstOrNull {
-                it.name == "getSessionId" || it.name == "getClientAudioSessionId"
-            }
-            method?.invoke(config) as? Int ?: 0
-        } catch (_: Exception) {
-            0
         }
     }
 

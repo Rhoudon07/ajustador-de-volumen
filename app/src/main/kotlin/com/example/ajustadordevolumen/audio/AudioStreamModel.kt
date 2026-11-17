@@ -4,6 +4,7 @@ import android.media.AudioManager
 
 enum class StreamCategory {
     CALL,
+    GAME,
     MEDIA,
     RING,
     NOTIFICATION,
@@ -35,6 +36,17 @@ data class AudioStreamInfo(
 data class AudioMixerState(
     val streams: List<AudioStreamInfo> = emptyList(),
     val activeApps: List<AppAudioInfo> = emptyList(),
+    val gameVolumePercent: Int = 100,
+    val isGameMuted: Boolean = false,
+    val isGameActive: Boolean = false,
+    val mediaVolumePercent: Int = 100,
+    val isMediaMuted: Boolean = false,
     val isInCall: Boolean = false,
     val isMusicActive: Boolean = false
-)
+) {
+    val gameApps: List<AppAudioInfo>
+        get() = activeApps.filter { it.isGame }
+
+    val nonGameApps: List<AppAudioInfo>
+        get() = activeApps.filter { !it.isGame }
+}

@@ -87,6 +87,26 @@ class VolumeRepository(private val context: Context) {
         }
     }
 
+    fun setGameMasterVolume(volumePercent: Int) {
+        appVolumeManager.setGameMasterVolume(volumePercent)
+        refresh()
+    }
+
+    fun toggleGameMasterMute() {
+        appVolumeManager.toggleGameMasterMute()
+        refresh()
+    }
+
+    fun setMediaMasterVolume(volumePercent: Int) {
+        appVolumeManager.setMediaMasterVolume(volumePercent)
+        refresh()
+    }
+
+    fun toggleMediaMasterMute() {
+        appVolumeManager.toggleMediaMasterMute()
+        refresh()
+    }
+
     fun setAppVolume(packageName: String, volumePercent: Int) {
         appVolumeManager.setAppVolume(packageName, volumePercent)
     }
@@ -171,9 +191,16 @@ class VolumeRepository(private val context: Context) {
             )
         )
 
+        val isGameActive = appVolumeManager.activeApps.value.any { it.isGame }
+
         return AudioMixerState(
             streams = streamsList,
             activeApps = appVolumeManager.activeApps.value,
+            gameVolumePercent = appVolumeManager.gameMasterVolume,
+            isGameMuted = appVolumeManager.isGameMasterMuted,
+            isGameActive = isGameActive,
+            mediaVolumePercent = appVolumeManager.mediaMasterVolume,
+            isMediaMuted = appVolumeManager.isMediaMasterMuted,
             isInCall = inCall,
             isMusicActive = musicActive
         )

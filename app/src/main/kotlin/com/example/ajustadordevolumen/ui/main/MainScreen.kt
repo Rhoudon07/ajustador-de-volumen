@@ -24,8 +24,11 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PhoneInTalk
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.SwipeDown
+import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -41,11 +44,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ajustadordevolumen.ui.components.AppVolumeSlider
+import com.example.ajustadordevolumen.ui.components.CategoryMasterSlider
 import com.example.ajustadordevolumen.ui.components.VolumeStreamSlider
 import com.example.ajustadordevolumen.ui.dialog.VolumeDialogActivity
 
@@ -94,6 +99,7 @@ fun MainScreen(
             item {
                 StatusBanner(
                     isInCall = state.isInCall,
+                    isGameActive = state.isGameActive,
                     isMusicActive = state.isMusicActive,
                     activeAppsCount = state.activeApps.size
                 )
@@ -108,6 +114,57 @@ fun MainScreen(
                         }
                         context.startActivity(intent)
                     }
+                )
+            }
+
+            // SEPARATED CHANNELS SECTION: GAMES & MULTIMEDIA
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Canales Separados",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Juegos vs Multimedia",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            // Game Master Slider
+            item {
+                CategoryMasterSlider(
+                    title = "Volumen de Juegos",
+                    subtitle = if (state.isGameActive) "Juego en ejecución detectado" else "Nivel exclusivo para juegos",
+                    icon = Icons.Default.VideogameAsset,
+                    volumePercent = state.gameVolumePercent,
+                    isMuted = state.isGameMuted,
+                    accentColor = Color(0xFFE65100),
+                    badgeText = if (state.isGameActive) "🎮 Activo" else "Juegos",
+                    onVolumeChanged = { viewModel.setGameMasterVolume(it) },
+                    onToggleMute = { viewModel.toggleGameMasterMute() }
+                )
+            }
+
+            // Media Master Slider
+            item {
+                CategoryMasterSlider(
+                    title = "Volumen Multimedia",
+                    subtitle = "Música, videos, YouTube y reproductores",
+                    icon = Icons.Default.MusicNote,
+                    volumePercent = state.mediaVolumePercent,
+                    isMuted = state.isMediaMuted,
+                    accentColor = Color(0xFF1565C0),
+                    badgeText = "Música/Video",
+                    onVolumeChanged = { viewModel.setMediaMasterVolume(it) },
+                    onToggleMute = { viewModel.toggleMediaMasterMute() }
                 )
             }
 
@@ -127,7 +184,7 @@ fun MainScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Volumen por Aplicación Individual",
+                            text = "Apps Específicas Detectadas",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -162,7 +219,7 @@ fun MainScreen(
                 }
             }
 
-            // Sliders Section Header (System streams)
+            // Sliders Section Header (System streams: Calls, Ringtones, Alarms)
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -170,7 +227,7 @@ fun MainScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Canales de Audio del Sistema",
+                        text = "Canales del Sistema (Llamadas / Avisos)",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -182,10 +239,9 @@ fun MainScreen(
                 }
             }
 
-            // Volume Sliders (System streams)
-            items(state.streams, key = { it.streamType }) { stream ->
-                val isHighlighted = (stream.isCallStream && state.isInCall) ||
-                        (stream.isMediaStream && (state.isMusicActive || state.isInCall))
+            // Volume Sliders (System streams excluding duplicate media)
+            items(state.streams.filter { !it.isMediaStream }, key = { it.streamType }) { stream ->
+                val isHighlighted = stream.isCallStream && state.isInCall
 
                 VolumeStreamSlider(
                     stream = stream,
@@ -199,7 +255,7 @@ fun MainScreen(
                 )
             }
 
-            // Info Card about Audio Streams and Per-App
+            // Info Card about Audio Streams and Separation
             item {
                 InfoAudioChannelsCard()
             }
@@ -208,15 +264,24 @@ fun MainScreen(
 }
 
 @Composable
-private fun StatusBanner(isInCall: Boolean, isMusicActive: Boolean, activeAppsCount: Int) {
+private fun StatusBanner(
+    isInCall: Boolean,
+    isGameActive: Boolean,
+    isMusicActive: Boolean,
+    activeAppsCount: Int
+) {
     val containerColor = if (isInCall) {
         MaterialTheme.colorScheme.primaryContainer
+    } else if (isGameActive) {
+        Color(0xFFFFE0B2) // Light amber
     } else {
         MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
     }
 
     val contentColor = if (isInCall) {
         MaterialTheme.colorScheme.onPrimaryContainer
+    } else if (isGameActive) {
+        Color(0xFFE65100) // Deep amber
     } else {
         MaterialTheme.colorScheme.onSecondaryContainer
     }
@@ -238,8 +303,15 @@ private fun StatusBanner(isInCall: Boolean, isMusicActive: Boolean, activeAppsCo
                     .background(contentColor.copy(alpha = 0.15f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
+                val icon = if (isInCall) {
+                    Icons.Default.PhoneInTalk
+                } else if (isGameActive) {
+                    Icons.Default.VideogameAsset
+                } else {
+                    Icons.Default.Layers
+                }
                 Icon(
-                    imageVector = if (isInCall) Icons.Default.PhoneInTalk else Icons.Default.Layers,
+                    imageVector = icon,
                     contentDescription = null,
                     tint = contentColor,
                     modifier = Modifier.size(24.dp)
@@ -247,22 +319,32 @@ private fun StatusBanner(isInCall: Boolean, isMusicActive: Boolean, activeAppsCo
             }
             Spacer(modifier = Modifier.width(14.dp))
             Column {
+                val title = if (isInCall) {
+                    "Llamada Activa Detectada"
+                } else if (isGameActive) {
+                    "Juego en Ejecución"
+                } else {
+                    "Canales de Audio Listos"
+                }
                 Text(
-                    text = if (isInCall) "Llamada Activa Detectada" else "Sistema de Audio en Espera",
+                    text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = contentColor
                 )
+                val description = if (isInCall) {
+                    "Puedes regular la llamada, el juego y la música por separado."
+                } else if (isGameActive) {
+                    "Regula el juego independientemente de tu música o videos."
+                } else if (activeAppsCount > 0) {
+                    "$activeAppsCount aplicación(es) detectada(s) con audio activo."
+                } else if (isMusicActive) {
+                    "Audio multimedia activo. Abre el juego o video para calibrar."
+                } else {
+                    "Juegos y multimedia ahora están en canales separados."
+                }
                 Text(
-                    text = if (isInCall) {
-                        "Puedes regular la llamada y tus juegos/apps individualmente."
-                    } else if (activeAppsCount > 0) {
-                        "$activeAppsCount aplicación(es) detectada(s) con audio activo."
-                    } else if (isMusicActive) {
-                        "Audio multimedia activo. Abre el juego o video para calibrar."
-                    } else {
-                        "Listo para cuando abras una llamada, juego o video."
-                    },
+                    text = description,
                     style = MaterialTheme.typography.bodySmall,
                     color = contentColor.copy(alpha = 0.85f)
                 )
@@ -295,12 +377,12 @@ private fun NoActiveAppsCard() {
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "Detección de Apps en Tiempo Real",
+                    text = "Detección Inteligente de Apps",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "Cuando inicies un juego, YouTube o Spotify con sonido, aparecerá aquí su deslizador independiente.",
+                    text = "Los juegos se identificarán con 🎮 y las apps de música/video con 🎵 al empezar a reproducir audio.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -425,7 +507,7 @@ private fun InfoAudioChannelsCard() {
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = "Control Individual: Utiliza AudioPlaybackConfiguration para identificar las sesiones de audio de cada aplicación activa y regular su ganancia independiente, manteniendo la llamada en su canal aislado.",
+                text = "Separación Inteligente: La app distingue juegos (AudioAttributes.USAGE_GAME / CATEGORY_GAME) de multimedia (USAGE_MEDIA), permitiendo ajustar los juegos sin afectar tu música o videos de fondo.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

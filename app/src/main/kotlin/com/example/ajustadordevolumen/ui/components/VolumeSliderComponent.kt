@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -51,6 +52,7 @@ fun VolumeStreamSlider(
 ) {
     val categoryIcon: ImageVector = when (stream.category) {
         StreamCategory.CALL -> Icons.Default.Call
+        StreamCategory.GAME -> Icons.Default.VideogameAsset
         StreamCategory.MEDIA -> Icons.Default.MusicNote
         StreamCategory.RING -> Icons.Default.Notifications
         StreamCategory.NOTIFICATION -> Icons.Default.Notifications
