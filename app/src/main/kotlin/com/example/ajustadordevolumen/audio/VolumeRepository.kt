@@ -89,21 +89,37 @@ class VolumeRepository(private val context: Context) {
 
     fun setGameMasterVolume(volumePercent: Int) {
         appVolumeManager.setGameMasterVolume(volumePercent)
+        // If a game is active or detected, adjust the media stream as target
+        if (appVolumeManager.activeApps.value.any { it.isGame }) {
+            val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            val min = getMinVolume(AudioManager.STREAM_MUSIC)
+            val target = (min + (volumePercent * (max - min) / 100f)).toInt().coerceIn(min, max)
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+        }
         refresh()
     }
 
     fun toggleGameMasterMute() {
         appVolumeManager.toggleGameMasterMute()
+        if (appVolumeManager.activeApps.value.any { it.isGame }) {
+            toggleMute(AudioManager.STREAM_MUSIC)
+        }
         refresh()
     }
 
     fun setMediaMasterVolume(volumePercent: Int) {
         appVolumeManager.setMediaMasterVolume(volumePercent)
+        // Set real hardware volume for STREAM_MUSIC
+        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val min = getMinVolume(AudioManager.STREAM_MUSIC)
+        val target = (min + (volumePercent * (max - min) / 100f)).toInt().coerceIn(min, max)
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
         refresh()
     }
 
     fun toggleMediaMasterMute() {
         appVolumeManager.toggleMediaMasterMute()
+        toggleMute(AudioManager.STREAM_MUSIC)
         refresh()
     }
 
@@ -192,6 +208,9 @@ class VolumeRepository(private val context: Context) {
         )
 
         val isGameActive = appVolumeManager.activeApps.value.any { it.isGame }
+        val musicStream = streamsList.firstOrNull { it.streamType == AudioManager.STREAM_MUSIC }
+        val systemMediaPercent = musicStream?.percentage ?: 100
+        val systemMediaMuted = musicStream?.isMuted ?: false
 
         return AudioMixerState(
             streams = streamsList,
@@ -199,8 +218,8 @@ class VolumeRepository(private val context: Context) {
             gameVolumePercent = appVolumeManager.gameMasterVolume,
             isGameMuted = appVolumeManager.isGameMasterMuted,
             isGameActive = isGameActive,
-            mediaVolumePercent = appVolumeManager.mediaMasterVolume,
-            isMediaMuted = appVolumeManager.isMediaMasterMuted,
+            mediaVolumePercent = systemMediaPercent,
+            isMediaMuted = systemMediaMuted,
             isInCall = inCall,
             isMusicActive = musicActive
         )
